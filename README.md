@@ -18,6 +18,16 @@ macOS 在拔掉外屏时只保证窗口"和某块屏有交集"，**不保证窗�
 
 ## 安装
 
+### Homebrew（推荐）
+
+```bash
+brew install --cask dct74/tap/windowback
+brew upgrade --cask windowback     # 升级
+brew uninstall --cask windowback   # 卸载（加 --zap 连日志和偏好一起删）
+```
+
+### 手动
+
 1. 下载 `WindowBack-<版本>.zip`，解压后把 `WindowBack.app` 拖进 `/Applications`
 2. 首次启动会出现在菜单栏（`▭▭` 图标），没有 Dock 图标
 3. **授权辅助功能**：系统设置 → 隐私与安全性 → 辅助功能 → `+` 添加 `/Applications/WindowBack.app`
