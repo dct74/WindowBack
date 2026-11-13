@@ -261,6 +261,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() {
         let menu = NSMenu()
+        // 默认 autoenablesItems = true 会无视 isEnabled（只要 target 响应 action 就启用），
+        // 那样"没授权就禁用"和"没热键就禁用隐藏入口"都失效。
+        menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
         rebuild(menu)
@@ -273,26 +276,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.isEnabled = false
         menu.addItem(status)
 
-        if let event = lastEvent {
-            let line = NSMenuItem(title: eventLine(event), action: nil, keyEquivalent: "")
-            line.isEnabled = false
-            menu.addItem(line)
-        }
-        menu.addItem(.separator())
-
-        menu.addItem(item("立即采样并写日志", #selector(sampleNow)))
-        let rescueItem = item("把屏外窗口收回内屏", #selector(rescueNow))
-        rescueItem.isEnabled = WindowSampler.axTrusted
-        menu.addItem(rescueItem)
-
-        let auto = item("自动归位（外屏→内屏时）", #selector(toggleAutoFix))
-        auto.state = autoFix ? .on : .off
-        menu.addItem(auto)
-        menu.addItem(.separator())
-
         if !WindowSampler.axTrusted {
             menu.addItem(item("授权辅助功能…", #selector(requestTrust)))
         }
+        menu.addItem(.separator())
+
+        menu.addItem(item("立即采样", #selector(sampleNow)))
+        let rescueItem = item("收回屏外窗口", #selector(rescueNow))
+        rescueItem.isEnabled = WindowSampler.axTrusted
+        menu.addItem(rescueItem)
+
+        let auto = item("自动归位", #selector(toggleAutoFix))
+        auto.state = autoFix ? .on : .off
+        menu.addItem(auto)
+
+        // keyEquivalent 用系统列显示快捷键；真正生效靠全局热键，菜单里的只是提示。
+        let toggleIconItem = item("隐藏菜单栏图标", #selector(toggleIcon))
+        toggleIconItem.keyEquivalent = "w"
+        toggleIconItem.keyEquivalentModifierMask = [.control, .option, .command]
+        toggleIconItem.isEnabled = hotkeyAvailable
+        menu.addItem(toggleIconItem)
+        menu.addItem(.separator())
+
         let login = item("开机启动", #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
@@ -310,17 +315,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func statusText() -> String {
         let ghosts = lastSnapshot.filter { $0.offscreen && !$0.minimized }
         let screens = DisplayQuery.screens()
-        let topology = screens.map { "\($0.isBuiltin ? "内" : "外")\(Int($0.frame.width))x\(Int($0.frame.height))" }
-            .joined(separator: " + ")
-        var parts = ["屏: \(topology.isEmpty ? "无" : topology)"]
-        parts.append(ghosts.isEmpty ? "屏外窗口: 0" : "屏外窗口: \(ghosts.count)")
-        if !WindowSampler.axTrusted { parts.append("未授权辅助功能") }
-        return parts.joined(separator: " · ")
-    }
-
-    private func eventLine(_ event: DisplayEvent) -> String {
-        let delta = event.topologyChanged ? "拓扑变化" : "无拓扑变化"
-        return "上次事件: \(delta) [\(event.flags.joined(separator: ","))]"
+        let builtin = screens.first { $0.isBuiltin }
+        let shown = screens.map { "外\(Int($0.frame.width))×\(Int($0.frame.height))" }
+        let display = builtin.map { "内\(Int($0.frame.width))×\(Int($0.frame.height))" } ?? shown.joined(separator: "+")
+        let extra = builtin == nil ? screens.count : max(0, screens.count - 1)
+        let suffix = extra > 0 ? " +外\(extra)" : ""
+        return "\(display)\(suffix) · 屏外 \(ghosts.count)"
     }
 
     private func refreshMenuTitle() {
@@ -371,8 +371,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// 隐藏后菜单栏就没有入口了，只能靠同一个快捷键切回来。
+    private var lastToggleAt = Date.distantPast
+
     private func toggleIconVisibility() {
         guard let statusItem else { return }
+        // 菜单打开时按快捷键会同时触发菜单项和全局热键，节流避免连续两次抵消。
+        let now = Date()
+        guard now.timeIntervalSince(lastToggleAt) > 0.3 else { return }
+        lastToggleAt = now
         statusItem.isVisible.toggle()
         Logger.shared.note(statusItem.isVisible ? "menu bar icon shown" : "menu bar icon hidden",
                            ["hotkey": GlobalHotkey.displayName])
