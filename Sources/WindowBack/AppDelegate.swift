@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var burstWork: [DispatchWorkItem] = []
     private var autoFix = UserDefaults.standard.bool(forKey: "autoFix")
     private let burstDelays: [TimeInterval] = [0.05, 0.35, 0.8, 1.5, 2.5, 4.0, 7.0, 12.0]
+    private let globalHotkey = GlobalHotkey()
     private var wasLocked = false
     private var lastRescueNote = Date.distantPast
 
@@ -46,6 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleWindowEvent(pid: pid, notification: notification)
         }
         axEventWatcher.start()
+
+        if !globalHotkey.register(onFire: { [weak self] in self?.toggleIconVisibility() }) {
+            Logger.shared.note("global hotkey registration failed", ["hotkey": GlobalHotkey.displayName])
+        }
 
         // 亮屏 / 解锁：熄屏状态下拔了外屏，这两条是唯一可靠的回收时机。
         let workspace = NSWorkspace.shared.notificationCenter
@@ -360,6 +365,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.runModal()
         }
         refreshMenuTitle()
+    }
+
+    /// 隐藏后菜单栏就没有入口了，只能靠同一个快捷键切回来。
+    private func toggleIconVisibility() {
+        guard let statusItem else { return }
+        statusItem.isVisible.toggle()
+        Logger.shared.note(statusItem.isVisible ? "menu bar icon shown" : "menu bar icon hidden",
+                           ["hotkey": GlobalHotkey.displayName])
+        if statusItem.isVisible { refreshMenuTitle() }
+    }
+
+    @objc private func toggleIcon() {
+        toggleIconVisibility()
     }
 
     @objc private func openLog() {
