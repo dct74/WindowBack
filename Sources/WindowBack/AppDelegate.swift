@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoFix = UserDefaults.standard.bool(forKey: "autoFix")
     private let burstDelays: [TimeInterval] = [0.05, 0.35, 0.8, 1.5, 2.5, 4.0, 7.0, 12.0]
     private let globalHotkey = GlobalHotkey()
+    private var hotkeyAvailable = false
     private var wasLocked = false
     private var lastRescueNote = Date.distantPast
 
@@ -48,7 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         axEventWatcher.start()
 
-        if !globalHotkey.register(onFire: { [weak self] in self?.toggleIconVisibility() }) {
+        hotkeyAvailable = globalHotkey.register { [weak self] in self?.toggleIconVisibility() }
+        if !hotkeyAvailable {
+            // 没有快捷键就绝不能把图标藏起来，否则没有入口可以叫回来。
             Logger.shared.note("global hotkey registration failed", ["hotkey": GlobalHotkey.displayName])
         }
 
