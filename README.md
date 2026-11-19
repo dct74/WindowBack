@@ -61,6 +61,20 @@ brew uninstall --cask windowback   # 卸载（加 --zap 连日志和偏好一起
 - **开机启动** —— 走 `SMAppService`，App 需要在 `/Applications`
 - **打开日志**
 
+## 定时运行
+
+只在下班时间段跑（周一到周五 17:50 启动，09:00 退出）：
+
+```bash
+./scripts/schedule.sh install     # 装到 ~/Library/LaunchAgents 并加载
+./scripts/schedule.sh status      # 看加载状态与已注册的触发时刻
+./scripts/schedule.sh uninstall
+```
+
+走 `launchd` 的 `StartCalendarInterval`。Mac 睡眠时错过的时刻会在唤醒后补跑；LaunchAgent 只在登录后生效。退出用 SIGTERM，App 正常走 `applicationWillTerminate`。
+
+开启定时后建议在菜单里把「开机启动」关掉，否则登录时也会启动。
+
 ## 日志
 
 `~/Library/Logs/WindowBack/monitor.log`，JSONL，8 MB 轮转。
